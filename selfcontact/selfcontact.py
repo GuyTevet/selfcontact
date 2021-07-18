@@ -94,7 +94,7 @@ class SelfContact(nn.Module):
         if self.test_segments:
             sxseg = pickle.load(open(segments_bounds_path, 'rb'))
             self.segments = BatchBodySegment(
-                [x for x in sxseg.keys()], faces, segments_folder, self.model_type
+                [x for x in sxseg.keys()], faces, segments_folder, self.model_type, device=self.device
             )
 
         # load regressor to get high density mesh

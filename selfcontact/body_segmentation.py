@@ -28,10 +28,12 @@ class BodySegment(nn.Module):
                  faces,
                  segments_folder,
                  model_type='smplx',
-                 append_idx=None):
+                 append_idx=None,
+                 device='cuda'):
         super(BodySegment, self).__init__()
 
         self.name = name
+        self.device = device
         self.append_idx = faces.max().item() if append_idx is None \
             else append_idx
 
@@ -43,7 +45,7 @@ class BodySegment(nn.Module):
         segment_path = f'{segments_folder}/{model_type}_segment_{name}.ply'
         bandmesh = trimesh.load(segment_path, process=False)
         segment_vidx = torch.from_numpy(np.where(
-            np.array(bandmesh.visual.vertex_colors[:,0]) == 255)[0])
+            np.array(bandmesh.visual.vertex_colors[:,0]) == 255)[0]).to(self.device)
         self.register_buffer('segment_vidx', segment_vidx)
 
         # read boundary information
@@ -51,8 +53,8 @@ class BodySegment(nn.Module):
         self.bands_verts = [x for x in sxseg[name].values()]
         self.num_bounds = len(self.bands_verts)
         for idx, bv in enumerate(self.bands_verts):
-            self.register_buffer(f'bands_verts_{idx}', torch.tensor(bv))
-        self.bands_faces = self.create_band_faces()
+            self.register_buffer(f'bands_verts_{idx}', torch.tensor(bv).to(self.device))
+        self.bands_faces = self.create_band_faces().to(self.device)
 
         # read mesh and find
         segment_faces_ids = np.where(np.isin(faces.cpu().numpy(),
@@ -66,7 +68,7 @@ class BodySegment(nn.Module):
         tri_vidx = []
         for ii in range(faces.max().item()+1):
             tri_vidx += [torch.nonzero(faces==ii)[0].tolist()]
-        self.register_buffer('tri_vidx', torch.tensor(tri_vidx))
+        self.register_buffer('tri_vidx', torch.tensor(tri_vidx).to(self.device))
 
     def create_band_faces(self):
         """
@@ -81,7 +83,7 @@ class BodySegment(nn.Module):
             bands_faces += new_faces
 
         bands_faces_tensor = torch.tensor(
-            np.array(bands_faces).astype(np.int64), dtype=torch.long)
+            np.array(bands_faces).astype(np.int64), dtype=torch.long).to(self.device)
 
         return bands_faces_tensor
 
@@ -137,6 +139,7 @@ class BatchBodySegment(nn.Module):
         self.names = names
         self.num_segments = len(names)
         self.nv = faces.max().item()
+        self.device = device
 
         self.model_type = model_type
         sb_path = f'{segments_folder}/{model_type}_segments_bounds.pkl'
@@ -149,7 +152,7 @@ class BatchBodySegment(nn.Module):
         self.segmentation = {}
         for idx, name in enumerate(names):
             self.segmentation[name] = BodySegment(name, faces, segments_folder,
-                model_type).to('cuda')
+                model_type, device=self.device).to(self.device)
 
     def batch_has_self_isec_verts(self, vertices):
         """
