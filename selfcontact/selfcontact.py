@@ -86,7 +86,7 @@ class SelfContact(nn.Module):
 
         # geodesic distance mask
         if geodesics_path is not None:
-            geodesicdists = torch.Tensor(np.load(geodesics_path), device=self.device)
+            geodesicdists = torch.Tensor(np.load(geodesics_path)).to(self.device)
             geodistmask = geodesicdists >= self.geothres
             self.register_buffer('geomask', geodistmask)
 
