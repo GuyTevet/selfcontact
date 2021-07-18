@@ -40,6 +40,7 @@ class SelfContact(nn.Module):
         model_type='smplx',
         test_segments=True,
         compute_hd=False,
+        device='cuda',
     ):
         super().__init__()
 
@@ -49,6 +50,7 @@ class SelfContact(nn.Module):
         self.geothres = geothres
         self.test_segments = test_segments
         self.compute_hd = compute_hd
+        self.device = device
 
         if essentials_folder is not None:
             geodesics_path = osp.join(essentials_folder, 'geodesics', 
@@ -66,7 +68,7 @@ class SelfContact(nn.Module):
         # create faces tensor
         faces = np.load(faces_path)
         if type(faces) is not torch.Tensor:
-            faces = torch.tensor(faces.astype(np.int64), dtype=torch.long)
+            faces = torch.tensor(faces.astype(np.int64), dtype=torch.long, device=self.device)
         self.register_buffer('faces', faces)
 
         # create extra vertex and faces to close back of the mouth to maske
@@ -78,13 +80,13 @@ class SelfContact(nn.Module):
             faces_wt = [[vert_ids_wt[i+1], vert_ids_wt[i],
                 faces.max().item()+1] for i in range(len(vert_ids_wt)-1)]
             faces_wt = torch.tensor(np.array(faces_wt).astype(np.int64),
-                dtype=torch.long)
+                dtype=torch.long, device=self.device)
             faces_wt = torch.cat((faces, faces_wt), 0)
             self.register_buffer('faces_wt', faces_wt)
 
         # geodesic distance mask
         if geodesics_path is not None:
-            geodesicdists = torch.Tensor(np.load(geodesics_path))
+            geodesicdists = torch.Tensor(np.load(geodesics_path), device=self.device)
             geodistmask = geodesicdists >= self.geothres
             self.register_buffer('geomask', geodistmask)
 
@@ -99,16 +101,16 @@ class SelfContact(nn.Module):
         if self.compute_hd:
             hd_operator = np.load(hd_operator_path)
             hd_operator = torch.sparse.FloatTensor(
-                torch.tensor(hd_operator['index_row_col']),
-                torch.tensor(hd_operator['values']),
-                torch.Size(hd_operator['size']))
+                torch.tensor(hd_operator['index_row_col'], device=self.device),
+                torch.tensor(hd_operator['values'], device=self.device),
+                torch.Size(hd_operator['size'], device=self.device))
             self.register_buffer('hd_operator',
-                torch.tensor(hd_operator).float())
+                torch.tensor(hd_operator, device=self.device).float())
 
             with open(point_vert_corres_path, 'rb') as f:
                 hd_geovec = pickle.load(f)['faces_vert_is_sampled_from']
             self.register_buffer('geovec',
-                torch.tensor(hd_geovec))
+                torch.tensor(hd_geovec, device=self.device))
             self.register_buffer('geovec_verts', self.faces[self.geovec][:,0])
 
     def triangles(self, vertices):
